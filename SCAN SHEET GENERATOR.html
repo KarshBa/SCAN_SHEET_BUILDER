@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Scan Sheet Generator</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+
+    <style>
+      :root {
+        --bg: #f5f7fb;
+        --panel: #ffffff;
+        --border: #d9e1ea;
+        --border-strong: #bfcbd9;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --accent: #1d4ed8;
+        --accent-soft: #dbeafe;
+        --danger: #b91c1c;
+        --success: #166534;
+        --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+        --radius: 14px;
+        --page-width: 8.5in;
+        --page-height: 11in;
+        --page-padding: 0.35in;
+        --gap: 0.14in;
+        --label-height: 1.9in;
+        --header-height: 0.38in;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      header {
+        padding: 20px 24px 12px;
+        text-align: center;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 30px;
+        color: #1e3a8a;
+        letter-spacing: 0.2px;
+      }
+
+      .app {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 18px 28px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        margin-bottom: 18px;
+      }
+
+      .controls {
+        padding: 18px;
+      }
+
+      .controls-grid {
+        display: grid;
+        grid-template-columns: minmax(280px, 1fr) auto auto auto;
+        gap: 12px;
+        align-items: end;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+
+      .field label {
+        font-size: 13px;
+        font-weight: 700;
+        color: #334155;
+      }
+
+      input[type="file"] {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border-strong);
+        border-radius: 12px;
+        background: #fff;
+        font: inherit;
+      }
+
+      button {
+        appearance: none;
+        border: none;
+        cursor: pointer;
+        border-radius: 12px;
+        padding: 12px 16px;
+        font-size: 14px;
+        font-weight: 700;
+        min-height: 46px;
+        transition: transform 0.05s ease, opacity 0.2s ease, background 0.2s ease;
+      }
+
+      button:active {
+        transform: translateY(1px);
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .btn-secondary {
+        background: #eef2ff;
+        color: #1e40af;
+        border: 1px solid #c7d2fe;
+      }
+
+      .btn-light {
+        background: #fff;
+        color: #374151;
+        border: 1px solid var(--border-strong);
+      }
+
+      button[disabled] {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .help {
+        margin-top: 12px;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .status {
+        padding: 16px 18px;
+        border-top: 1px solid var(--border);
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .status-card {
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px 14px;
+      }
+
+      .status-label {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .status-value {
+        font-size: 22px;
+        font-weight: 800;
+        color: #0f172a;
+      }
+
+      .status-message {
+        grid-column: 1 / -1;
+        font-size: 13px;
+        line-height: 1.5;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #f8fafc;
+        color: #334155;
+        white-space: pre-wrap;
+      }
+
+      .status-message.error {
+        background: #fef2f2;
+        border-color: #fecaca;
+        color: var(--danger);
+      }
+
+      .status-message.success {
+        background: #f0fdf4;
+        border-color: #bbf7d0;
+        color: var(--success);
+      }
+
+      .preview-wrap {
+        padding: 18px;
+      }
+
+      .preview-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
+      }
+
+      .preview-header h2 {
+        margin: 0;
+        font-size: 18px;
+        color: #1f2937;
+      }
+
+      .preview-note {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .pages {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        align-items: center;
+      }
+
+      .print-page {
+        width: var(--page-width);
+        min-height: var(--page-height);
+        background: #fff;
+        color: #000;
+        border: 1px solid #cbd5e1;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+        padding: var(--page-padding);
+        page-break-after: always;
+        break-after: page;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .page-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+        font-size: 12px;
+        color: #475569;
+        font-weight: 700;
+      }
+
+      .sheet-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-auto-rows: minmax(var(--label-height), auto);
+        gap: var(--gap);
+        align-content: start;
+      }
+
+      .vendor-row {
+        grid-column: 1 / -1;
+        min-height: var(--header-height);
+        max-height: var(--header-height);
+        border: 1px solid #334155;
+        background: #e2e8f0;
+        color: #0f172a;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        padding: 0 10px;
+        text-transform: uppercase;
+        overflow: hidden;
+        break-inside: avoid;
+      }
+
+      .label {
+        border: 1px solid #111827;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 8px 8px;
+        text-align: center;
+        overflow: hidden;
+        break-inside: avoid;
+      }
+
+      .label-desc {
+        width: 100%;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.2;
+        min-height: 32px;
+        max-height: 32px;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        margin-bottom: 6px;
+      }
+
+      .label-meta {
+        font-size: 11px;
+        color: #374151;
+        min-height: 14px;
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: 100%;
+      }
+
+      .barcode-wrap {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 76px;
+        margin: 4px 0 2px;
+      }
+
+      .barcode {
+        width: 100%;
+        height: 74px;
+      }
+
+      .upc-text {
+        margin-top: 2px;
+        font-size: 11px;
+        font-family: "Courier New", monospace;
+        letter-spacing: 0.06em;
+        color: #111827;
+        font-weight: 700;
+      }
+
+      .empty-state {
+        padding: 28px 18px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      @media (max-width: 980px) {
+        .controls-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .status {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 640px) {
+        .controls-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .status {
+          grid-template-columns: 1fr;
+        }
+
+        .print-page {
+          width: 100%;
+          min-height: auto;
+        }
+      }
+
+      @page {
+        size: letter portrait;
+        margin: 0.25in;
+      }
+
+      @media print {
+        body {
+          background: #fff;
+        }
+
+        .no-print {
+          display: none !important;
+        }
+
+        .app {
+          max-width: none;
+          padding: 0;
+        }
+
+        .panel {
+          border: none;
+          box-shadow: none;
+          margin: 0;
+          border-radius: 0;
+        }
+
+        .preview-wrap {
+          padding: 0;
+        }
+
+        .pages {
+          display: block;
+        }
+
+        .print-page {
+          width: auto;
+          min-height: auto;
+          border: none;
+          box-shadow: none;
+          margin: 0;
+          padding: 0.2in 0.15in;
+        }
+
+        .page-title {
+          display: none;
+        }
+
+        .vendor-row,
+        .label {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <header class="no-print">
+      <h1>Scan Sheet Generator</h1>
+    </header>
+
+    <main class="app">
+      <section class="panel no-print">
+        <div class="controls">
+          <div class="controls-grid">
+            <div class="field">
+              <label for="csvFile">Upload CSV</label>
+              <input
+                id="csvFile"
+                type="file"
+                accept=".csv,text/csv"
+              />
+            </div>
+
+            <button
+              id="generateBtn"
+              class="btn-primary"
+            >
+              Generate Scan Sheet
+            </button>
+
+            <button
+              id="printBtn"
+              class="btn-secondary"
+              disabled
+            >
+              Print
+            </button>
+
+            <button
+              id="clearBtn"
+              class="btn-light"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <div class="status">
+          <div class="status-card">
+            <div class="status-label">Parsed Rows</div>
+            <div
+              id="parsedRows"
+              class="status-value"
+            >
+              0
+            </div>
+          </div>
+
+          <div class="status-card">
+            <div class="status-label">Valid Barcode Entries</div>
+            <div
+              id="validRows"
+              class="status-value"
+            >
+              0
+            </div>
+          </div>
+
+          <div class="status-card">
+            <div class="status-label">Vendor Groups</div>
+            <div
+              id="vendorCount"
+              class="status-value"
+            >
+              0
+            </div>
+          </div>
+
+          <div class="status-card">
+            <div class="status-label">Pages</div>
+            <div
+              id="pageCount"
+              class="status-value"
+            >
+              0
+            </div>
+          </div>
+
+          <div
+            id="statusMessage"
+            class="status-message"
+          >
+            Upload a CSV file and click Generate.
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="preview-wrap">
+          <div class="preview-header no-print">
+            <h2>Preview</h2>
+            <div class="preview-note">
+              Letter-size pages
+            </div>
+          </div>
+
+          <div
+            id="pages"
+            class="pages"
+          >
+            <div class="empty-state">No scan sheet generated yet.</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const REQUIRED_HEADERS = [
+        '"Main code"',
+        '"Main item-Description"',
+        '"Cost-Vendor-Name"'
+      ];
+
+      const OPTIONAL_HEADERS = [
+        '"Main item-Brand"',
+        '"Main item-Size"',
+        '"Price-Regular-Price"',
+        '"Cost-Vendor-ID"',
+        '"Cost-Vendor-Code"',
+        '"Sub-department-Number"',
+        '"Sub-department-Description"'
+      ];
+
+      const ALL_SUPPORTED_HEADERS = [...REQUIRED_HEADERS, ...OPTIONAL_HEADERS];
+
+      const csvFileEl = document.getElementById("csvFile");
+      const generateBtn = document.getElementById("generateBtn");
+      const printBtn = document.getElementById("printBtn");
+      const clearBtn = document.getElementById("clearBtn");
+      const parsedRowsEl = document.getElementById("parsedRows");
+      const validRowsEl = document.getElementById("validRows");
+      const vendorCountEl = document.getElementById("vendorCount");
+      const pageCountEl = document.getElementById("pageCount");
+      const statusMessageEl = document.getElementById("statusMessage");
+      const pagesEl = document.getElementById("pages");
+
+      let currentRows = [];
+      let currentPages = [];
+
+      function setStatus(message, type = "") {
+        statusMessageEl.textContent = message;
+        statusMessageEl.className = "status-message" + (type ? " " + type : "");
+      }
+
+      function updateCounts({ parsed = 0, valid = 0, vendors = 0, pages = 0 } = {}) {
+        parsedRowsEl.textContent = String(parsed);
+        validRowsEl.textContent = String(valid);
+        vendorCountEl.textContent = String(vendors);
+        pageCountEl.textContent = String(pages);
+      }
+
+      function clearOutput(resetFile = false) {
+        currentRows = [];
+        currentPages = [];
+        pagesEl.innerHTML = '<div class="empty-state">No scan sheet generated yet.</div>';
+        printBtn.disabled = true;
+        updateCounts();
+        setStatus("Upload a CSV file and click Generate.");
+
+        if (resetFile) {
+          csvFileEl.value = "";
+        }
+      }
+
+      function normalizeHeader(rawHeader) {
+        let value = String(rawHeader ?? "").trim();
+
+        if (value.charCodeAt(0) === 0xfeff) {
+          value = value.slice(1);
+        }
+
+        /**
+         * The template file uses triple-quoted CSV header cells, for example:
+         * """Main code"""
+         * A CSV parser typically resolves that to a literal cell value of:
+         * "Main code"
+         * We normalize whitespace and repeated quote wrappers while preserving the
+         * intended header text in the canonical form: "Main code"
+         */
+        value = value.replace(/\u00A0/g, " ").trim();
+
+        while (
+          value.length >= 2 &&
+          value.startsWith('"') &&
+          value.endsWith('"') &&
+          value.slice(1, -1).trim() !== ""
+        ) {
+          const inner = value.slice(1, -1).trim();
+
+          if (!inner.includes('"')) {
+            value = `"${inner}"`;
+            break;
+          }
+
+          value = inner;
+        }
+
+        if (!value.startsWith('"') && !value.endsWith('"')) {
+          value = `"${value.replace(/^"+|"+$/g, "").trim()}"`;
+        }
+
+        return value.trim();
+      }
+
+      function normalizeHeaderKey(rawHeader) {
+        return normalizeHeader(rawHeader).toLowerCase();
+      }
+
+      function buildHeaderMap(fields) {
+        const map = new Map();
+
+        for (const field of fields || []) {
+          map.set(normalizeHeaderKey(field), field);
+        }
+
+        return map;
+      }
+
+      function getFieldName(headerMap, canonicalHeader) {
+        return headerMap.get(canonicalHeader.toLowerCase()) || null;
+      }
+
+      function cleanCell(value) {
+        if (value == null) {
+          return "";
+        }
+
+        return String(value).replace(/\u00A0/g, " ").trim();
+      }
+
+      function safeText(value, fallback) {
+        const cleaned = cleanCell(value);
+        return cleaned || fallback;
+      }
+
+      function normalizeForSort(value) {
+        return safeText(value, "").toLocaleLowerCase();
+      }
+
+      function normalizeUPC(rawValue) {
+        const original = String(rawValue ?? "").trim();
+        let working = original;
+
+        if (!original) {
+          console.warn("[normalizeUPC] blank value", { rawValue });
+          return null;
+        }
+
+        if (/^\d+(\.\d+)?e\+\d+$/i.test(working)) {
+          const numeric = Number(working);
+
+          if (Number.isFinite(numeric) && Number.isSafeInteger(Math.round(numeric))) {
+            working = String(Math.round(numeric));
+            console.info("[normalizeUPC] expanded scientific notation", {
+              original,
+              expanded: working
+            });
+          } else {
+            console.warn("[normalizeUPC] scientific notation could not be expanded safely", {
+              original
+            });
+          }
+        }
+
+        const digits = working.replace(/\D/g, "");
+
+        if (!digits) {
+          console.warn("[normalizeUPC] no digits after cleanup", {
+            original,
+            working
+          });
+          return null;
+        }
+
+        /**
+         * Scan sheet rule:
+         * Use the uploaded code exactly as provided (after scientific-notation recovery
+         * and non-digit cleanup). Do not slice, pad, append filler digits, or apply UPC
+         * check-digit logic here. The downstream apps should normalize scanner differences.
+         */
+        console.debug("[normalizeUPC] accepted exact code", {
+          original,
+          working,
+          digits
+        });
+
+        return {
+          baseCode: digits,
+          normalized: digits
+        };
+      }
+
+      async function parseCsvFile(file) {
+        if (!file) {
+          throw new Error("No file provided");
+        }
+
+        console.log("[parseCsvFile] starting", {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          lastModified: file.lastModified
+        });
+
+        let text;
+
+        try {
+          text = await file.text();
+        } catch (err) {
+          console.error("[parseCsvFile] file.text() failed", {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            error: err
+          });
+          throw err;
+        }
+
+        console.log("[parseCsvFile] text loaded", {
+          length: text.length,
+          preview: text.slice(0, 200)
+        });
+
+        return new Promise((resolve, reject) => {
+          Papa.parse(text, {
+            header: true,
+            skipEmptyLines: "greedy",
+            dynamicTyping: false,
+            complete: (results) => resolve(results),
+            error: (err) => reject(err)
+          });
+        });
+      }
+
+      function validateHeaders(metaFields) {
+        const headerMap = buildHeaderMap(metaFields);
+        const missing = REQUIRED_HEADERS.filter((header) => !getFieldName(headerMap, header));
+        return { headerMap, missing };
+      }
+
+      function transformRows(parsedRows, headerMap) {
+        const codeField = getFieldName(headerMap, '"Main code"');
+        const descField = getFieldName(headerMap, '"Main item-Description"');
+        const vendorField = getFieldName(headerMap, '"Cost-Vendor-Name"');
+        const brandField = getFieldName(headerMap, '"Main item-Brand"');
+        const sizeField = getFieldName(headerMap, '"Main item-Size"');
+        const priceField = getFieldName(headerMap, '"Price-Regular-Price"');
+
+        const transformed = [];
+
+        for (const [index, row] of parsedRows.entries()) {
+          const rawUPC = row[codeField];
+          const upcData = normalizeUPC(rawUPC);
+
+          if (!upcData) {
+            console.warn("[transformRows] skipped row with invalid UPC", {
+              rowIndex: index + 2,
+              rawUPC,
+              description: row[descField],
+              vendor: row[vendorField],
+              row
+            });
+            continue;
+          }
+
+          transformed.push({
+            vendor: safeText(row[vendorField], "Unknown Vendor"),
+            description: safeText(row[descField], "No Description"),
+            brand: safeText(brandField ? row[brandField] : "", ""),
+            size: safeText(sizeField ? row[sizeField] : "", ""),
+            price: safeText(priceField ? row[priceField] : "", ""),
+            upc: upcData.baseCode
+          });
+        }
+
+        transformed.sort((a, b) => {
+          const vendorCompare = normalizeForSort(a.vendor).localeCompare(
+            normalizeForSort(b.vendor)
+          );
+
+          if (vendorCompare !== 0) {
+            return vendorCompare;
+          }
+
+          return normalizeForSort(a.description).localeCompare(
+            normalizeForSort(b.description)
+          );
+        });
+
+        return transformed;
+      }
+
+      function paginateRows(rows) {
+        /**
+         * We target a 12-up page in a 3 x 4 label grid.
+         * Vendor breaks insert a full-width row. Because those rows consume vertical
+         * space, a page may contain fewer than 12 barcode labels when a vendor break
+         * falls inside that page. The barcode cells themselves remain 12-up sized.
+         */
+        const MAX_LABELS_PER_PAGE = 12;
+        const pages = [];
+        let currentPage = [];
+        let labelCountOnPage = 0;
+        let previousVendor = null;
+
+        for (const row of rows) {
+          const vendorChanged = row.vendor !== previousVendor;
+
+          if (vendorChanged) {
+            if (labelCountOnPage >= 10 || currentPage.length === 0) {
+              if (currentPage.length) {
+                pages.push(currentPage);
+              }
+
+              currentPage = [];
+              labelCountOnPage = 0;
+            }
+
+            currentPage.push({ type: "vendor", vendor: row.vendor });
+            previousVendor = row.vendor;
+          }
+
+          if (labelCountOnPage >= MAX_LABELS_PER_PAGE) {
+            pages.push(currentPage);
+            currentPage = [{ type: "vendor", vendor: row.vendor }];
+            labelCountOnPage = 0;
+          }
+
+          currentPage.push({ type: "label", row });
+          labelCountOnPage += 1;
+        }
+
+        if (currentPage.length) {
+          pages.push(currentPage);
+        }
+
+        return pages;
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function renderPages(pages, rows) {
+        if (!rows.length) {
+          pagesEl.innerHTML =
+            '<div class="empty-state">No valid UPC rows were found in the uploaded CSV.</div>';
+          printBtn.disabled = true;
+          return;
+        }
+
+        const html = pages
+          .map((items, index) => {
+            const inner = items
+              .map((item) => {
+                if (item.type === "vendor") {
+                  return `<div class="vendor-row">${escapeHtml(item.vendor)}</div>`;
+                }
+
+                const row = item.row;
+                const metaBits = [row.brand, row.size].filter(Boolean);
+                const metaText = metaBits.join(" • ");
+
+                return `
+                  <div class="label">
+                    <div class="label-desc">${escapeHtml(row.description)}</div>
+                    <div class="label-meta">${escapeHtml(metaText || " ")}</div>
+                    <div class="barcode-wrap">
+                      <svg class="barcode" data-upc="${escapeHtml(row.upc)}"></svg>
+                    </div>
+                    <div class="upc-text">${escapeHtml(row.upc)}</div>
+                  </div>
+                `;
+              })
+              .join("");
+
+            return `
+              <section class="print-page">
+                <div class="page-title">
+                  <div>Scan Sheet</div>
+                  <div>Page ${index + 1} of ${pages.length}</div>
+                </div>
+                <div class="sheet-grid">${inner}</div>
+              </section>
+            `;
+          })
+          .join("");
+
+        pagesEl.innerHTML = html;
+
+        document.querySelectorAll(".barcode").forEach((svg) => {
+          const upc = String(svg.dataset.upc || "").trim();
+
+          try {
+            if (!upc) {
+              throw new Error("barcode value is blank");
+            }
+
+            if (!/^\d+$/.test(upc)) {
+              throw new Error("barcode value must be numeric");
+            }
+
+            JsBarcode(svg, upc, {
+              format: "CODE128",
+              width: 1.6,
+              height: 58,
+              displayValue: false,
+              margin: 0,
+              background: "#ffffff",
+              lineColor: "#000000"
+            });
+          } catch (err) {
+            console.error("[renderPages] barcode render failed", {
+              upc,
+              error: err
+            });
+
+            svg.outerHTML =
+              '<div style="font-size:11px;color:#b91c1c;font-weight:700;">Invalid Barcode</div>';
+          }
+        });
+
+        printBtn.disabled = false;
+      }
+
+      async function generateScanSheet() {
+        const file = csvFileEl.files && csvFileEl.files[0];
+
+          if (!file) {
+            setStatus("Please choose a CSV file before generating.", "error");
+            return;
+          }
+
+          console.log("[generateScanSheet] selected file", {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            lastModified: file.lastModified
+          });
+
+        generateBtn.disabled = true;
+        printBtn.disabled = true;
+        setStatus("Parsing CSV and building scan sheet...");
+
+        try {
+          const result = await parseCsvFile(file);
+          const parsedRows = Array.isArray(result.data) ? result.data : [];
+          const fields =
+            result.meta && Array.isArray(result.meta.fields) ? result.meta.fields : [];
+
+          const { headerMap, missing } = validateHeaders(fields);
+
+          const codeFieldForDebug = getFieldName(headerMap, '"Main code"');
+
+            if (codeFieldForDebug) {
+              const upcShapeSummary = {};
+
+              for (const row of parsedRows) {
+                const raw = String(row[codeFieldForDebug] ?? "").trim();
+                const key = raw || "(blank)";
+                upcShapeSummary[key] = (upcShapeSummary[key] || 0) + 1;
+              }
+
+              console.log("[generateScanSheet] raw UPC sample", parsedRows.slice(0, 20).map((row, i) => ({
+                rowIndex: i + 2,
+                rawUPC: row[codeFieldForDebug]
+              })));
+            }
+
+          if (missing.length) {
+            updateCounts({
+              parsed: parsedRows.length,
+              valid: 0,
+              vendors: 0,
+              pages: 0
+            });
+
+            pagesEl.innerHTML =
+              '<div class="empty-state">Unable to generate preview because required headers are missing.</div>';
+
+            setStatus(
+              "Missing required header(s):\n" +
+                missing.join("\n") +
+                "\n\nFound headers:\n" +
+                fields.map((f) => normalizeHeader(f)).join("\n"),
+              "error"
+            );
+
+            return;
+          }
+
+          currentRows = transformRows(parsedRows, headerMap);
+          currentPages = paginateRows(currentRows);
+
+          console.log("[generateScanSheet] summary", {
+            parsedRows: parsedRows.length,
+            validRows: currentRows.length,
+            invalidRows: parsedRows.length - currentRows.length
+          });
+
+          const uniqueVendors = new Set(currentRows.map((row) => row.vendor));
+
+          updateCounts({
+            parsed: parsedRows.length,
+            valid: currentRows.length,
+            vendors: uniqueVendors.size,
+            pages: currentPages.length
+          });
+
+          renderPages(currentPages, currentRows);
+
+          const supportedFound = ALL_SUPPORTED_HEADERS
+            .filter((header) => getFieldName(headerMap, header))
+            .map((header) => normalizeHeader(getFieldName(headerMap, header)));
+
+          setStatus(
+            `Generated ${currentRows.length} valid barcode entries across ${currentPages.length} page(s).\nSupported headers detected:\n${supportedFound.join("\n")}`,
+            currentRows.length ? "success" : "error"
+          );
+        } catch (err) {
+          console.error("[generateScanSheet] failed", err);
+          clearOutput(false);
+
+          const message =
+            err && err.message
+              ? err.message
+              : err && err.name
+                ? `${err.name}: ${String(err)}`
+                : String(err);
+
+          setStatus("Failed to parse CSV: " + message, "error");
+        } finally {
+          generateBtn.disabled = false;
+        }
+      }
+
+      generateBtn.addEventListener("click", generateScanSheet);
+
+      printBtn.addEventListener("click", () => {
+        if (!currentRows.length) {
+          return;
+        }
+
+        window.print();
+      });
+
+      clearBtn.addEventListener("click", () => {
+        clearOutput(true);
+      });
+
+      csvFileEl.addEventListener("change", () => {
+        if (!csvFileEl.files || !csvFileEl.files.length) {
+          clearOutput(false);
+          return;
+        }
+
+        setStatus(`Selected file: ${csvFileEl.files[0].name}`);
+      });
+
+      clearOutput(false);
+    </script>
+  </body>
+</html>
